@@ -175,3 +175,41 @@ tr:hover td {
   text-align: center;
   color: var(--text-secondary);
 }
+
+/* Editable cell styles */
+.editable-cell {
+  cursor: pointer;
+  position: relative;
+}
+
+.editable-cell .cell-value {
+  display: inline-block;
+}
+
+.editable-cell .edit-hint {
+  opacity: 0;
+  margin-left: 6px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  transition: opacity 0.15s;
+}
+
+.editable-cell:hover .edit-hint {
+  opacity: 0.6;
+}
+
+.editable-cell.editing {
+  padding: 4px 10px;
+}
+
+.cell-input {
+  width: 100%;
+  background: var(--bg-primary);
+  border: 1px solid var(--accent);
+  color: var(--text-primary);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+}

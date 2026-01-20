@@ -15,6 +15,7 @@ import {
   VolumeCell,
   MarketCapCell,
   StaticCell,
+  EditableNameCell,
 } from './ReactiveCell';
 
 const columnHelper = createColumnHelper<{ id: string }>();
@@ -30,10 +31,7 @@ const columns: ColumnDef<{ id: string }, string>[] = [
   columnHelper.display({
     id: 'name',
     header: 'Name',
-    cell: ({ row }) => {
-      const name = store$.stocks[row.original.id].name.peek();
-      return <StaticCell>{name}</StaticCell>;
-    },
+    cell: ({ row }) => <EditableNameCell stockId={row.original.id} />,
   }),
   columnHelper.display({
     id: 'price',

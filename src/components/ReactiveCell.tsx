@@ -1,5 +1,6 @@
+import { useState, useRef, useEffect } from "react";
 import { useValue } from "@legendapp/state/react";
-import { store$ } from "../store";
+import { store$, updateStockField } from "../store";
 
 // Fine-grained reactive cell components using Legend State v3 API
 // Each uses useValue() to subscribe to only ONE specific field of ONE specific stock
@@ -57,4 +58,67 @@ export const MarketCapCell = ({ stockId }: { stockId: string }) => {
 // Static cell - uses peek() since these values don't change
 export const StaticCell = ({ children }: { children: React.ReactNode }) => {
   return <td>{children}</td>;
+};
+
+// Editable cell with fine-grained reactivity
+// Only subscribes to the name field - editing won't cause other cells to re-render
+export const EditableNameCell = ({ stockId }: { stockId: string }) => {
+  // Fine-grained subscription - only re-renders when THIS stock's name changes
+  const name = useValue(store$.stocks[stockId].name);
+
+  // Local state for edit mode - doesn't affect other cells
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  const handleDoubleClick = () => {
+    setEditValue(name ?? "");
+    setIsEditing(true);
+  };
+
+  const handleSave = () => {
+    if (editValue.trim() && editValue !== name) {
+      // Updates only the name field - fine-grained update
+      updateStockField(stockId, "name", editValue.trim());
+    }
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleSave();
+    } else if (e.key === "Escape") {
+      setIsEditing(false);
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <td className="editable-cell editing">
+        <input
+          ref={inputRef}
+          type="text"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={handleKeyDown}
+          className="cell-input"
+        />
+      </td>
+    );
+  }
+
+  return (
+    <td className="editable-cell" onDoubleClick={handleDoubleClick}>
+      <span className="cell-value">{name ?? "—"}</span>
+      <span className="edit-hint">✎</span>
+    </td>
+  );
 };
