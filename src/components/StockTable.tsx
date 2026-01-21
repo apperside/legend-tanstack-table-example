@@ -1,4 +1,5 @@
 // StockTable.tsx
+import { batch } from "@legendapp/state";
 import { ObservableColumnDef } from "../hooks/types";
 import { useAppTable } from "../hooks/useAppTable";
 import { store$ } from "../store";
@@ -59,37 +60,44 @@ const columns: ObservableColumnDef<StockData, any>[] = [
     },
   },
 
-  // Custom render accessing multiple observables via rowId
+  // Custom render accessing multiple observables via data$
   {
     id: "volume",
     header: "Volume",
     cell: (row$) => ({ value$: row$.volume, format: "number" }),
-    render: ({ value$ }, rowId) => {
+    render: ({ value$ }, rowId, data$) => {
       const volume = value$.get();
-      // Access other fields from the same row
-      const isActive = store$.stocks[rowId].isActive.get();
+      // Access any row's fields via data$ (decoupled from global store)
+      const isActive = data$[rowId].isActive.get();
 
+      const doit = () => {
+        const keys = Object.keys(data$.get());
+        data$[keys[0]].isActive.toggle();
+      };
       return (
-        <span className={isActive ? "opacity-100" : "opacity-0"}>
-          {volume.toLocaleString()}{""+isActive}
+        <span onClick={doit} className={isActive ? "opacity-100" : "opacity-0"}>
+          {volume.toLocaleString()}
+          {"" + isActive}
         </span>
       );
     },
   },
 
-  // Action buttons
+  // Action buttons using data$ for toggle (delete still needs store$ for stockIds)
   {
     id: "actions",
     header: "Actions",
     cell: (row$) => ({ value$: row$.id }),
-    render: (_, rowId) => {
+    render: (_, rowId, data$) => {
       const handleToggle = () => {
-        store$.stocks[rowId].isActive.toggle();
+        data$[rowId].isActive.toggle();
       };
 
       const handleDelete = () => {
-        store$.stocks[rowId].delete();
-        store$.stockIds.set((ids) => ids.filter((id) => id !== rowId));
+        batch(() => {
+          data$[rowId].delete();
+          store$.stockIds.set((ids) => ids.filter((id) => id !== rowId));
+        });
       };
 
       return (
@@ -137,9 +145,7 @@ export const StockTableComposed = () => {
         <Header />
         <Body />
       </table>
-      <div className="footer">
-        Total: {table.getRowModel().rows.length}
-      </div>
+      <div className="footer">Total: {table.getRowModel().rows.length}</div>
     </div>
   );
 };

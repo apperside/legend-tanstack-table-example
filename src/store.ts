@@ -1,4 +1,4 @@
-import { observable } from "@legendapp/state";
+import { batch, observable } from "@legendapp/state";
 import { StockData } from "./types";
 
 const generateMockStocks = (count: number): StockData[] => {
@@ -29,7 +29,8 @@ const generateMockStocks = (count: number): StockData[] => {
 
   for (let i = 0; i < count; i++) {
     const base = symbols[i % symbols.length];
-    const suffix = i >= symbols.length ? `-${Math.floor(i / symbols.length)}` : "";
+    const suffix =
+      i >= symbols.length ? `-${Math.floor(i / symbols.length)}` : "";
     const basePrice = 50 + Math.random() * 450;
     const change = (Math.random() - 0.5) * 20;
 
@@ -42,8 +43,8 @@ const generateMockStocks = (count: number): StockData[] => {
       changePercent: Math.round((change / basePrice) * 10000) / 100,
       volume: Math.floor(Math.random() * 50000000),
       marketCap: Math.floor(Math.random() * 2000000000000),
-      high52w: Math.round((basePrice * 1.3) * 100) / 100,
-      low52w: Math.round((basePrice * 0.7) * 100) / 100,
+      high52w: Math.round(basePrice * 1.3 * 100) / 100,
+      low52w: Math.round(basePrice * 0.7 * 100) / 100,
       isActive: Math.random() > 0.5,
     });
   }
@@ -73,9 +74,11 @@ export const fetchStocks = async (count: number = 100): Promise<void> => {
     ids.push(stock.id);
   });
 
-  store$.stocks.set(stocksMap);
-  store$.stockIds.set(ids);
-  store$.isLoading.set(false);
+  batch(() => {
+    store$.stocks.set(stocksMap);
+    store$.stockIds.set(ids);
+    store$.isLoading.set(false);
+  });
 };
 
 // Update a single field - only subscribers to this path re-render
@@ -92,7 +95,9 @@ export const updateStockField = <K extends keyof StockData>(
 };
 
 // Simulate real-time price updates
-export const startPriceSimulation = (intervalMs: number = 100): (() => void) => {
+export const startPriceSimulation = (
+  intervalMs: number = 100
+): (() => void) => {
   const interval = setInterval(() => {
     const ids = store$.stockIds.peek();
     if (ids.length === 0) return;
@@ -104,7 +109,8 @@ export const startPriceSimulation = (intervalMs: number = 100): (() => void) => 
       const priceChange = (Math.random() - 0.5) * 2;
       const newPrice = Math.round((stock.price + priceChange) * 100) / 100;
       const newChange = Math.round(priceChange * 100) / 100;
-      const newChangePercent = Math.round((priceChange / stock.price) * 10000) / 100;
+      const newChangePercent =
+        Math.round((priceChange / stock.price) * 10000) / 100;
 
       updateStockField(randomId, "price", newPrice);
       updateStockField(randomId, "change", newChange);

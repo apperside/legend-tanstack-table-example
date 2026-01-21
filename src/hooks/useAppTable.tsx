@@ -10,7 +10,6 @@ import { memo, useMemo, FC, Fragment } from "react";
 import {
   CellConfig,
   CellRenderer,
-  ObservableColumnDef,
   UseAppTableOptions,
   UseAppTableReturn,
 } from "./types";
@@ -32,42 +31,39 @@ const DefaultCell = observer(({ config }: { config: CellConfig }) => {
   return <>{formatValue(value, config.format)}</>;
 });
 
-// Cache for wrapped custom renderers
-const renderCache = new WeakMap<
-  CellRenderer<any>,
-  FC<{ config: CellConfig; rowId: string }>
->();
+// Cache for wrapped custom renderers (using any for cache to avoid complex generics)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const renderCache = new WeakMap<CellRenderer<any, any>, FC<any>>();
 
-function getOrCreateReactiveCell<TValue>(
-  render: CellRenderer<TValue>
-): FC<{ config: CellConfig<TValue>; rowId: string }> {
+function getOrCreateReactiveCell<TValue, TData>(
+  render: CellRenderer<TValue, TData>
+): FC<{ config: CellConfig<TValue>; rowId: string; data$: Observable<Record<string, TData>> }> {
   if (!renderCache.has(render)) {
     const WrappedCell = memo(
       observer(
-        ({ config, rowId }: { config: CellConfig<TValue>; rowId: string }) => (
-          <>{render(config, rowId)}</>
+        ({ config, rowId, data$ }: { config: CellConfig<TValue>; rowId: string; data$: Observable<Record<string, TData>> }) => (
+          <>{render(config, rowId, data$)}</>
         )
       )
     );
     WrappedCell.displayName = "ReactiveCell";
-    renderCache.set(
-      render,
-      WrappedCell as FC<{ config: CellConfig; rowId: string }>
-    );
+    renderCache.set(render, WrappedCell);
   }
   return renderCache.get(render)!;
 }
 
 // Reactive cell wrapper
-const ReactiveCell = <TValue,>({
+const ReactiveCell = <TValue, TData>({
   config,
   rowId,
+  data$,
   render,
   className,
 }: {
   config: CellConfig<TValue>;
   rowId: string;
-  render?: CellRenderer<TValue>;
+  data$: Observable<Record<string, TData>>;
+  render?: CellRenderer<TValue, TData>;
   className?: string;
 }) => {
   const cellClassName = [className, config.className].filter(Boolean).join(" ");
@@ -76,7 +72,7 @@ const ReactiveCell = <TValue,>({
     const Cell = getOrCreateReactiveCell(render);
     return (
       <td className={cellClassName || undefined}>
-        <Cell config={config} rowId={rowId} />
+        <Cell config={config} rowId={rowId} data$={data$} />
       </td>
     );
   }
@@ -116,7 +112,8 @@ export function useAppTable<TData>({
             <ReactiveCell
               config={config}
               rowId={rowId}
-              render={col.render}
+              data$={data$ as any}
+              render={col.render as any}
               className={col.className}
             />
           );

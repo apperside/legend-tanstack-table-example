@@ -11,10 +11,11 @@ export interface CellConfig<TValue = unknown> {
   [key: string]: unknown;
 }
 
-// Render function receives resolved config + rowId
-export type CellRenderer<TValue = unknown> = (
+// Render function receives resolved config + rowId + data store
+export type CellRenderer<TValue = unknown, TData = unknown> = (
   config: CellConfig<TValue>,
-  rowId: string
+  rowId: string,
+  data$: Observable<Record<string, TData>>
 ) => ReactNode;
 
 // Column definition
@@ -22,7 +23,7 @@ export interface ObservableColumnDef<TData, TValue = unknown> {
   id: string;
   header: ReactNode | (() => ReactNode);
   cell: (row$: Observable<TData>) => Observable<TValue> | CellConfig<TValue>;
-  render?: CellRenderer<TValue>;
+  render?: CellRenderer<TValue, TData>;
   className?: string;
   width?: number | string;
 }
