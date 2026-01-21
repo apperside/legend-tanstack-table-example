@@ -44,6 +44,7 @@ const generateMockStocks = (count: number): StockData[] => {
       marketCap: Math.floor(Math.random() * 2000000000000),
       high52w: Math.round((basePrice * 1.3) * 100) / 100,
       low52w: Math.round((basePrice * 0.7) * 100) / 100,
+      isActive: Math.random() > 0.5,
     });
   }
 

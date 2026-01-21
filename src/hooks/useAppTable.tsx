@@ -2,57 +2,37 @@
 import { Observable } from "@legendapp/state";
 import { observer, useValue } from "@legendapp/state/react";
 import {
-    flexRender,
-    getCoreRowModel,
-    useReactTable
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
 } from "@tanstack/react-table";
-import { FC, memo, useMemo } from "react";
+import { memo, useMemo, FC, Fragment } from "react";
 import {
-    CellConfig,
-    CellRenderer,
-    UseAppTableOptions,
-    UseAppTableReturn
+  CellConfig,
+  CellRenderer,
+  ObservableColumnDef,
+  UseAppTableOptions,
+  UseAppTableReturn,
 } from "./types";
+import { formatValue } from "./formatters";
 
-// Normalize cell resolver output to CellConfig
+// Normalize cell output to CellConfig
 function normalizeCellConfig<TValue>(
   result: Observable<TValue> | CellConfig<TValue>
 ): CellConfig<TValue> {
-  // Check if it's already a config object (has value$ property)
   if (result && typeof result === "object" && "value$" in result) {
     return result as CellConfig<TValue>;
   }
-  // It's a raw observable
   return { value$: result as Observable<TValue> };
 }
 
-// Default cell renderer
+// Default cell - just renders formatted value
 const DefaultCell = observer(({ config }: { config: CellConfig }) => {
   const value = useValue(config.value$);
   return <>{formatValue(value, config.format)}</>;
 });
 
-// Simple format helper - extend as needed
-function formatValue(value: unknown, format?: string): string {
-  if (value == null) return "";
-
-  switch (format) {
-    case "currency":
-      return typeof value === "number" ? `$${value.toFixed(2)}` : String(value);
-    case "percent":
-      return typeof value === "number"
-        ? `${(value * 100).toFixed(2)}%`
-        : String(value);
-    case "number":
-      return typeof value === "number" ? value.toLocaleString() : String(value);
-    case "date":
-      return value instanceof Date ? value.toLocaleDateString() : String(value);
-    default:
-      return String(value);
-  }
-}
-
-// Cache for wrapped render functions
+// Cache for wrapped custom renderers
 const renderCache = new WeakMap<
   CellRenderer<any>,
   FC<{ config: CellConfig; rowId: string }>
@@ -70,44 +50,43 @@ function getOrCreateReactiveCell<TValue>(
       )
     );
     WrappedCell.displayName = "ReactiveCell";
-    renderCache.set(render, WrappedCell);
+    renderCache.set(
+      render,
+      WrappedCell as FC<{ config: CellConfig; rowId: string }>
+    );
   }
   return renderCache.get(render)!;
 }
 
-// The reactive cell wrapper
-const ReactiveCell = observer(
-  <TValue,>({
-    config,
-    rowId,
-    render,
-    className,
-  }: {
-    config: CellConfig<TValue>;
-    rowId: string;
-    render?: CellRenderer<TValue>;
-    className?: string;
-  }) => {
-    const cellClassName = [className, config.className]
-      .filter(Boolean)
-      .join(" ");
+// Reactive cell wrapper
+const ReactiveCell = <TValue,>({
+  config,
+  rowId,
+  render,
+  className,
+}: {
+  config: CellConfig<TValue>;
+  rowId: string;
+  render?: CellRenderer<TValue>;
+  className?: string;
+}) => {
+  const cellClassName = [className, config.className].filter(Boolean).join(" ");
 
-    if (render) {
-      const Cell = getOrCreateReactiveCell(render);
-      return (
-        <td className={cellClassName || undefined}>
-          <Cell config={config} rowId={rowId} />
-        </td>
-      );
-    }
-
+  if (render) {
+    const Cell = getOrCreateReactiveCell(render);
     return (
       <td className={cellClassName || undefined}>
-        <DefaultCell config={config as CellConfig} />
+        <Cell config={config} rowId={rowId} />
       </td>
     );
   }
-);
+
+  return (
+    <td className={cellClassName || undefined}>
+      <DefaultCell config={config as CellConfig} />
+    </td>
+  );
+};
 
 export function useAppTable<TData>({
   data$,
@@ -115,6 +94,7 @@ export function useAppTable<TData>({
   columns,
   tableOptions = {},
 }: UseAppTableOptions<TData>): UseAppTableReturn<TData> {
+  // Only re-render table when row list changes
   const rowIds = useValue(rowIds$);
 
   const tableData = useMemo(() => rowIds.map((id) => ({ id })), [rowIds]);
@@ -152,8 +132,10 @@ export function useAppTable<TData>({
     ...tableOptions,
   });
 
-  // Composable components
-  const HeaderComponent: FC = memo(() => (
+  const getRow$ = (rowId: string) => (data$ as any)[rowId] as Observable<TData>;
+
+  // Composable sub-components
+  const Header: FC = memo(() => (
     <thead>
       {table.getHeaderGroups().map((headerGroup) => (
         <tr key={headerGroup.id}>
@@ -172,30 +154,30 @@ export function useAppTable<TData>({
     </thead>
   ));
 
-  const RowComponent: FC<{ rowId: string }> = memo(({ rowId }) => {
+  const Row: FC<{ rowId: string }> = memo(({ rowId }) => {
     const row = table.getRowModel().rows.find((r) => r.original.id === rowId);
     if (!row) return null;
 
     return (
       <tr>
-        {row
-          .getVisibleCells()
-          .map((cell) =>
-            flexRender(cell.column.columnDef.cell, cell.getContext())
-          )}
+        {row.getVisibleCells().map((cell) => (
+          <Fragment key={cell.id}>
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </Fragment>
+        ))}
       </tr>
     );
   });
 
-  const BodyComponent: FC = memo(() => (
+  const Body: FC = memo(() => (
     <tbody>
       {table.getRowModel().rows.map((row) => (
         <tr key={row.id}>
-          {row
-            .getVisibleCells()
-            .map((cell) =>
-              flexRender(cell.column.columnDef.cell, cell.getContext())
-            )}
+          {row.getVisibleCells().map((cell) => (
+            <Fragment key={cell.id}>
+              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            </Fragment>
+          ))}
         </tr>
       ))}
     </tbody>
@@ -203,20 +185,18 @@ export function useAppTable<TData>({
 
   const TableComponent: FC<{ className?: string }> = memo(({ className }) => (
     <table className={className}>
-      <HeaderComponent />
-      <BodyComponent />
+      <Header />
+      <Body />
     </table>
   ));
-
-  const getRow$ = (rowId: string) => (data$ as any)[rowId] as Observable<TData>;
 
   return {
     table,
     data$,
     getRow$,
     Table: TableComponent,
-    Header: HeaderComponent,
-    Body: BodyComponent,
-    Row: RowComponent,
+    Header,
+    Body,
+    Row,
   };
 }

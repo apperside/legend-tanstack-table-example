@@ -5,8 +5,9 @@ export interface StockData {
   name: string;
   price: number;
   change: number;
-  changePercent: number;
   volume: number;
+  isActive: boolean;
+  changePercent: number;
   marketCap: number;
   high52w: number;
   low52w: number;
